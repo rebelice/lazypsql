@@ -1,16 +1,11 @@
+/*
+Copyright © 2023 NAME HERE <EMAIL ADDRESS>
+
+*/
 package main
 
-import (
-	"fmt"
-	"os"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/rebelice/lazypsql/app"
-)
+import "github.com/rebelice/lazypsql/cmd"
 
 func main() {
-	if _, err := tea.NewProgram(&app.Model{}, tea.WithAltScreen()).Run(); err != nil {
-		fmt.Printf("Uh oh, there was an error: %v\n", err)
-		os.Exit(1)
-	}
+	cmd.Execute()
 }
