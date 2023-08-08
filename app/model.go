@@ -1,6 +1,9 @@
 package app
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,18 +26,14 @@ func (i Item) FilterValue() string { return zone.Mark(i.id, i.title) }
 type Model struct {
 	Database *postgres.Database
 
-	SchemaList list.Model
-	TableList  list.Model
+	SchemaList *list.Model
+	TableList  *list.Model
+
+	Err error
 }
 
-func NewModel(database *postgres.Database) tea.Model {
-	zone.NewGlobal()
-	schemas := []list.Item{
-		Item{id: "schema_1", title: "public", desc: "public schema"},
-		Item{id: "schema_2", title: "dev_schema", desc: "dev schema"},
-		Item{id: "schema_3", title: "prod_schema", desc: "prod schema"},
-	}
-	items := []list.Item{
+var (
+	initItems = []list.Item{
 		// an ID field has been added here, however it's not required. You could use
 		// any text field as long as it's unique for the zone.
 		Item{id: "item_1", title: "Raspberry Pi’s", desc: "I have ’em all over my house"},
@@ -61,31 +60,55 @@ func NewModel(database *postgres.Database) tea.Model {
 		Item{id: "item_22", title: "Gaffer’s tape", desc: "Basically sticky fabric"},
 		Item{id: "item_23", title: "Terrycloth", desc: "In other words, towel fabric"},
 	}
+)
+
+func NewModel(database *postgres.Database, f *os.File) tea.Model {
+	zone.NewGlobal()
+
+	schemas := []list.Item{
+		Item{id: "schema_1", title: "public", desc: "public schema"},
+		Item{id: "schema_2", title: "dev_schema", desc: "dev schema"},
+		Item{id: "schema_3", title: "prod_schema", desc: "prod schema"},
+	}
+	// items := initItems
+	// items := []list.Item{}
+	schemaList := list.New(schemas, list.NewDefaultDelegate(), 0, 0)
 	result := Model{
-		SchemaList: list.New(schemas, list.NewDefaultDelegate(), 0, 0),
-		TableList:  list.New(items, list.NewDefaultDelegate(), 0, 0),
+		SchemaList: &schemaList,
+		TableList:  nil,
 	}
 	result.SchemaList.Title = "Left click on an items title to select it"
-	result.TableList.Title = "Left click on an items title to select it"
+	// result.TableList.Title = "Left click on an items title to select it"
 
 	result.Database = database
-	return result
+	return &result
 }
 
-func (m Model) Init() tea.Cmd {
-	return nil
+func (m *Model) Init() tea.Cmd {
+	return m.ConnectDatabase
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ConnectMsg:
+		for len(m.SchemaList.Items()) > 0 {
+			m.SchemaList.RemoveItem(0)
+		}
+		for i, schema := range m.Database.Metadata.Schemas {
+			m.SchemaList.InsertItem(i, Item{id: fmt.Sprintf("schema_%d", i), title: schema.Name, desc: "This is desc"})
+		}
+		m.SchemaList.Title = "Choose the schema"
+
+		// m.TableList = list.New(initItems, list.NewDefaultDelegate(), 0, 0)
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.SchemaList.SetSize((msg.Width-h)/2, msg.Height-v)
-		m.TableList.SetSize((msg.Width-h)/2, msg.Height-v)
+		// m.TableList.SetSize((msg.Width-h)/2, msg.Height-v)
 	case tea.MouseMsg:
 		if msg.Type == tea.MouseWheelUp {
 			m.SchemaList.CursorUp()
@@ -110,21 +133,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+	case ErrMsg:
+		m.Err = msg.err
+		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.SchemaList, cmd = m.SchemaList.Update(msg)
+	*m.SchemaList, cmd = m.SchemaList.Update(msg)
 	return m, cmd
 }
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	// Wrap the main models view in zone.Scan.
-	return zone.Scan(docStyle.Render(
+	body := docStyle.Render(
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.SchemaList.View(), m.TableList.View(),
+			m.SchemaList.View(), //m.TableList.View(),
 		),
-	))
+	)
+	dialog := lipgloss.Place(10, 10, lipgloss.Center, lipgloss.Center, "This is floating window!", lipgloss.WithWhitespaceChars(body))
+	// return zone.Scan(body + dialog)
+	if m.Err != nil {
+		body += "\n" + m.Err.Error()
+	}
+	// return zone.Scan(body)
+	return zone.Scan(dialog)
 }
 
 type ErrMsg struct {

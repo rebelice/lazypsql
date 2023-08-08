@@ -48,9 +48,15 @@ to quickly create a Cobra application.`,
 			},
 		}
 
-		model := app.NewModel(database)
+		f, err := tea.LogToFile("debug.log", "debug")
+		if err != nil {
+			fmt.Println("fatal:", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		model := app.NewModel(database, f)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-		if err := p.Start(); err != nil {
+		if _, err := p.Run(); err != nil {
 			fmt.Println("Error running program:", err)
 			os.Exit(1)
 		}
@@ -85,7 +91,7 @@ func init() {
 	_ = rootCmd.Flags().SetAnnotation("help", cobra.FlagSetByCobraAnnotation, []string{"true"})
 
 	rootCmd.Flags().StringVarP(&flags.databaseName, "dbname", "d", "", `database name to connect to`)
-	rootCmd.Flags().StringVarP(&flags.host, "host", "h", "", `database server host or socket directory (default: "local socket")`)
+	rootCmd.Flags().StringVarP(&flags.host, "host", "h", "localhost", `database server host or socket directory (default: "local socket")`)
 	rootCmd.Flags().StringVarP(&flags.port, "port", "p", "5432", `database server port (default: "5432")`)
 	rootCmd.Flags().StringVarP(&flags.username, "username", "U", "", `database user name`)
 	rootCmd.Flags().BoolVarP(&flags.noPassword, "no-password", "w", false, `never prompt for password`)
