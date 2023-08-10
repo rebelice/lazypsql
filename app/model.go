@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
@@ -37,8 +36,9 @@ type Model struct {
 	Height int
 	Width  int
 
-	CommandPanel CommandPanel
-	SchemaList   list.Model
+	CommandPanel *CommandPanel
+	SchemaList   *SchemaList
+	InfoPanel    *InfoPanel
 
 	Err error
 }
@@ -46,21 +46,23 @@ type Model struct {
 func NewModel(database *postgres.Database, f *os.File) tea.Model {
 	zone.NewGlobal()
 
-	schemas := []list.Item{
-		Item{id: "schema_1", title: "public", desc: "public schema"},
-		Item{id: "schema_2", title: "dev_schema", desc: "dev schema"},
-		Item{id: "schema_3", title: "prod_schema", desc: "prod schema"},
-	}
-	// items := initItems
-	// items := []list.Item{}
-	schemaList := list.New(schemas, list.NewDefaultDelegate(), 0, 0)
-	result := Model{
-		SchemaList: schemaList,
-	}
-	result.SchemaList.Title = "Left click on an items title to select it"
-	// result.TableList.Title = "Left click on an items title to select it"
+	// schemas := []list.Item{
+	// 	Item{id: "schema_1", title: "public", desc: "public schema"},
+	// 	Item{id: "schema_2", title: "dev_schema", desc: "dev schema"},
+	// 	Item{id: "schema_3", title: "prod_schema", desc: "prod schema"},
+	// }
+	// // items := initItems
+	// // items := []list.Item{}
+	// schemaList := list.New(schemas, list.NewDefaultDelegate(), 0, 0)
+	// result := Model{
+	// 	SchemaList: schemaList,
+	// }
+	// result.SchemaList.Title = "Left click on an items title to select it"
+	// // result.TableList.Title = "Left click on an items title to select it"
 
+	result := Model{}
 	result.Database = database
+	result.SchemaList = NewSchemaList("schema_list")
 	result.CommandPanel = NewCommandPanel("command_panel")
 	return &result
 }
@@ -70,6 +72,7 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	// Common Updates
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -112,40 +115,42 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.SchemaList.RemoveItem(0)
 		}
 		for i, schema := range m.Database.Metadata.Schemas {
-			m.SchemaList.InsertItem(i, Item{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
+			cmd := m.SchemaList.InsertItem(i, Item{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
+			cmds = append(cmds, cmd)
 		}
-		m.SchemaList.Title = "Choose the schema"
 
 		// m.TableList = list.New(initItems, list.NewDefaultDelegate(), 0, 0)
 	case tea.WindowSizeMsg:
-		h, v := docStyle.GetFrameSize()
-		m.CommandPanel.Width = msg.Width
-		m.SchemaList.SetSize((msg.Width-h)/2, msg.Height-v-1)
-		// m.TableList.SetSize((msg.Width-h)/2, msg.Height-v)
-	case tea.MouseMsg:
-		if msg.Type == tea.MouseWheelUp {
-			m.SchemaList.CursorUp()
-			return m, nil
-		}
+		horizontalFrame, verticalFrame := docStyle.GetFrameSize()
+		w, h := msg.Width-horizontalFrame, msg.Height-verticalFrame-1
+		// m.Err = errors.New(fmt.Sprintf("w: %d, h: %d, hf: %d, vf: %d", w, h, horizontalFrame, verticalFrame))
+		m.SchemaList.SetSize(w/3, h-2)
+		m.CommandPanel.Width = w
+		// return m, nil
+	// case tea.MouseMsg:
+	// 	if msg.Type == tea.MouseWheelUp {
+	// 		m.SchemaList.CursorUp()
+	// 		return m, nil
+	// 	}
 
-		if msg.Type == tea.MouseWheelDown {
-			m.SchemaList.CursorDown()
-			return m, nil
-		}
+	// 	if msg.Type == tea.MouseWheelDown {
+	// 		m.SchemaList.CursorDown()
+	// 		return m, nil
+	// 	}
 
-		if msg.Type == tea.MouseLeft {
-			for i, listItem := range m.SchemaList.VisibleItems() {
-				item, _ := listItem.(Item)
-				// Check each item to see if it's in bounds.
-				if zone.Get(item.id).InBounds(msg) {
-					// If so, select it in the list.
-					m.SchemaList.Select(i)
-					break
-				}
-			}
-		}
+	// 	if msg.Type == tea.MouseLeft {
+	// 		for i, listItem := range m.SchemaList.VisibleItems() {
+	// 			item, _ := listItem.(Item)
+	// 			// Check each item to see if it's in bounds.
+	// 			if zone.Get(item.id).InBounds(msg) {
+	// 				// If so, select it in the list.
+	// 				m.SchemaList.Select(i)
+	// 				break
+	// 			}
+	// 		}
+	// 	}
 
-		return m, nil
+	// 	return m, nil
 	case ErrMsg:
 		m.Err = msg.err
 		return m, nil
@@ -153,7 +158,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.SchemaList, cmd = m.SchemaList.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
 func (m *Model) View() string {

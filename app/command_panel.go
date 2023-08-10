@@ -11,25 +11,24 @@ type CommandPanel struct {
 	id string
 }
 
-func NewCommandPanel(id string) CommandPanel {
-	input := textinput.NewModel()
-	input.Prompt = " command>"
-	return CommandPanel{
+func NewCommandPanel(id string) *CommandPanel {
+	input := textinput.New()
+	return &CommandPanel{
 		id:    id,
 		Model: input,
 	}
 }
 
-func (c CommandPanel) Init() tea.Cmd {
+func (*CommandPanel) Init() tea.Cmd {
 	return nil
 }
 
-func (c CommandPanel) Update(msg tea.Msg) (CommandPanel, tea.Cmd) {
+func (c *CommandPanel) Update(msg tea.Msg) (*CommandPanel, tea.Cmd) {
 	model, cmd := c.Model.Update(msg)
 	c.Model = model
 	return c, cmd
 }
 
-func (c CommandPanel) View() string {
+func (c *CommandPanel) View() string {
 	return c.Model.View()
 }
