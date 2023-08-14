@@ -2,13 +2,12 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rebelice/lazypsql/postgres"
 )
 
-type ConnectMsg string
-
-const (
-	ConnectMsgSuccess ConnectMsg = "success"
-)
+type ConnectMsg struct {
+	Database *postgres.Database
+}
 
 func (m Model) ConnectDatabase() tea.Msg {
 	if err := m.Database.Connect(); err != nil {
@@ -23,5 +22,5 @@ func (m Model) ConnectDatabase() tea.Msg {
 		return ErrMsg{err}
 	}
 
-	return ConnectMsgSuccess
+	return ConnectMsg{m.Database}
 }

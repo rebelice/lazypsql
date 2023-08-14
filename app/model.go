@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,19 +11,10 @@ import (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type Item struct {
-	id    string
-	title string
-	desc  string
-}
-
-func (i Item) Title() string       { return zone.Mark(i.id, i.title) }
-func (i Item) Description() string { return i.desc }
-func (i Item) FilterValue() string { return zone.Mark(i.id, i.title) }
-
 type ModeState string
 
 const (
+	ModeStateFocusInfo    ModeState = "state.focus-info"
 	ModeStateCommandMode  ModeState = "state.command-mode"
 	ModeStateChooseSchema ModeState = "state.choose-schema"
 )
@@ -60,10 +50,13 @@ func NewModel(database *postgres.Database, f *os.File) tea.Model {
 	// result.SchemaList.Title = "Left click on an items title to select it"
 	// // result.TableList.Title = "Left click on an items title to select it"
 
-	result := Model{}
+	result := Model{
+		State: ModeStateChooseSchema,
+	}
 	result.Database = database
 	result.SchemaList = NewSchemaList("schema_list")
 	result.CommandPanel = NewCommandPanel("command_panel")
+	result.InfoPanel = NewInfoPanel("info_panel")
 	return &result
 }
 
@@ -90,10 +83,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.CommandPanel.Focus()
 			}
 		}
+	case ConnectMsg:
+		var cmd tea.Cmd
+		m.SchemaList, cmd = m.SchemaList.Update(msg)
+		cmds = append(cmds, cmd)
+		m.InfoPanel, cmd = m.InfoPanel.Update(msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 	}
 
 	// Mode specific updates
 	switch m.State {
+	// case ModeStateFocusInfo:
+	// 	var cmd tea.Cmd
+	// 	m.InfoPanel, cmd = m.InfoPanel.Update(msg)
+	// 	return m, cmd
 	case ModeStateCommandMode:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -107,24 +111,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.CommandPanel, cmd = m.CommandPanel.Update(msg)
 		return m, cmd
+	case ModeStateChooseSchema:
+		var cmd tea.Cmd
+		m.SchemaList, cmd = m.SchemaList.Update(msg)
+		return m, cmd
 	}
 
 	switch msg := msg.(type) {
 	case ConnectMsg:
-		for len(m.SchemaList.Items()) > 0 {
-			m.SchemaList.RemoveItem(0)
-		}
-		for i, schema := range m.Database.Metadata.Schemas {
-			cmd := m.SchemaList.InsertItem(i, Item{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
-			cmds = append(cmds, cmd)
-		}
+		// for len(m.SchemaList.Items()) > 0 {
+		// 	m.SchemaList.RemoveItem(0)
+		// }
+		// for i, schema := range m.Database.Metadata.Schemas {
+		// 	cmd := m.SchemaList.InsertItem(i, schemaItem{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
+		// 	cmds = append(cmds, cmd)
+		// }
 
 		// m.TableList = list.New(initItems, list.NewDefaultDelegate(), 0, 0)
 	case tea.WindowSizeMsg:
 		horizontalFrame, verticalFrame := docStyle.GetFrameSize()
 		w, h := msg.Width-horizontalFrame, msg.Height-verticalFrame-1
 		// m.Err = errors.New(fmt.Sprintf("w: %d, h: %d, hf: %d, vf: %d", w, h, horizontalFrame, verticalFrame))
-		m.SchemaList.SetSize(w/3, h-2)
+		infoPanelHeight := h / 3
+		m.InfoPanel.SetSize(w/3, infoPanelHeight-2)
+		m.SchemaList.SetSize(w/3, h-infoPanelHeight-2)
 		m.CommandPanel.Width = w
 		// return m, nil
 	// case tea.MouseMsg:
@@ -159,6 +169,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.SchemaList, cmd = m.SchemaList.Update(msg)
 	cmds = append(cmds, cmd)
+	m.InfoPanel, cmd = m.InfoPanel.Update(msg)
+	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
 
@@ -167,8 +179,9 @@ func (m *Model) View() string {
 	body := docStyle.Render(
 		lipgloss.JoinVertical(
 			lipgloss.Top,
-			lipgloss.JoinHorizontal(
-				lipgloss.Top,
+			lipgloss.JoinVertical(
+				lipgloss.Left,
+				m.InfoPanel.View(),
 				m.SchemaList.View(), //m.TableList.View(),
 			),
 			zone.Mark(m.CommandPanel.id, m.CommandPanel.View()),

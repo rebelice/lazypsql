@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
 )
 
@@ -12,6 +13,8 @@ type infoType string
 
 type InfoPanel struct {
 	list.Model
+
+	style lipgloss.Style
 
 	id string
 
@@ -50,6 +53,7 @@ func NewInfoPanel(id string) *InfoPanel {
 	return &InfoPanel{
 		id:    id,
 		Model: infoPanel,
+		style: NewUnfocusedModelStyle(0, 0),
 	}
 }
 
@@ -64,5 +68,10 @@ func (s *InfoPanel) Update(msg tea.Msg) (*InfoPanel, tea.Cmd) {
 }
 
 func (s *InfoPanel) View() string {
-	return s.Model.View()
+	return s.style.Render(s.Model.View())
+}
+
+func (s *InfoPanel) SetSize(width, height int) {
+	h, v := s.style.Width(width).Height(height).GetFrameSize()
+	s.Model.SetSize(width-h, height-v)
 }
