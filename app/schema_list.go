@@ -65,6 +65,7 @@ func (s *SchemaList) Update(msg tea.Msg) (*SchemaList, tea.Cmd) {
 		switch msg.String() {
 		case "enter", "o":
 			s.state = schemaListStateChosen
+			return s, nil
 		}
 	}
 
@@ -80,6 +81,13 @@ func (s *SchemaList) View() string {
 
 func (s *SchemaList) SetSize(width, height int) {
 	h, v := s.style.Width(width).Height(height).GetFrameSize()
-	// panic(fmt.Sprintf("h: %d, v: %d, width: %d, height: %d", h, v, width, height))
 	s.model.SetSize(width-h, height-v)
+}
+
+func (s *SchemaList) Chosen() (bool, string) {
+	if s.state == schemaListStateChosen {
+		item := s.model.SelectedItem()
+		return true, item.(schemaItem).title
+	}
+	return false, ""
 }

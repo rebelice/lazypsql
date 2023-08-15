@@ -14,9 +14,11 @@ var docStyle = lipgloss.NewStyle().Margin(1, 2)
 type ModeState string
 
 const (
-	ModeStateFocusInfo    ModeState = "state.focus-info"
-	ModeStateCommandMode  ModeState = "state.command-mode"
-	ModeStateChooseSchema ModeState = "state.choose-schema"
+	ModeStateFocusInfo     ModeState = "state.focus-info"
+	ModeStateCommandMode   ModeState = "state.command-mode"
+	ModeStateChooseSchema  ModeState = "state.choose-schema"
+	ModeStateSyncingTables ModeState = "state.syncing-tables"
+	ModeStateChooseTable   ModeState = "state.choose-table"
 )
 
 type Model struct {
@@ -26,9 +28,10 @@ type Model struct {
 	Height int
 	Width  int
 
-	CommandPanel *CommandPanel
-	SchemaList   *SchemaList
 	InfoPanel    *InfoPanel
+	SchemaList   *SchemaList
+	TableList    *TableList
+	CommandPanel *CommandPanel
 
 	Err error
 }
@@ -120,9 +123,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.CommandPanel, cmd = m.CommandPanel.Update(msg)
 		return m, cmd
 	case ModeStateChooseSchema:
+		var cmds []tea.Cmd
 		var cmd tea.Cmd
 		m.SchemaList, cmd = m.SchemaList.Update(msg)
-		return m, cmd
+		cmds = append(cmds, cmd)
+		ok, schema := m.SchemaList.Chosen()
+		if ok {
+			m.InfoPanel.schema = schema
+			m.State = ModeStateSyncingTables
+			cmds = append(cmds, m.SyncTables)
+		}
+		return m, tea.Batch(cmds...)
+	case ModeStateSyncingTables:
+		// switch msg := msg.(type) {
+		// case SyncTablesMsg:
+		// }
 	}
 
 	switch msg := msg.(type) {
