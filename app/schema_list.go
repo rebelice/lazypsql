@@ -19,11 +19,20 @@ func (i schemaItem) Title() string       { return zone.Mark(i.id, i.title) }
 func (i schemaItem) Description() string { return i.desc }
 func (i schemaItem) FilterValue() string { return zone.Mark(i.id, i.title) }
 
+type schemaListState string
+
+const (
+	schemaListStateChoosing schemaListState = "choosing"
+	schemaListStateChosen   schemaListState = "chosen"
+)
+
 type SchemaList struct {
-	*list.Model
+	model *list.Model
 
 	id    string
 	style lipgloss.Style
+
+	state schemaListState
 }
 
 func NewSchemaList(id string) *SchemaList {
@@ -31,8 +40,9 @@ func NewSchemaList(id string) *SchemaList {
 	schemaList.Title = "Choose a schema"
 	return &SchemaList{
 		id:    id,
-		Model: &schemaList,
+		model: &schemaList,
 		style: NewFocusedModelStyle(0, 0),
+		state: schemaListStateChoosing,
 	}
 }
 
@@ -44,34 +54,32 @@ func (s *SchemaList) Update(msg tea.Msg) (*SchemaList, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case ConnectMsg:
-		for len(s.Model.Items()) > 0 {
-			s.Model.RemoveItem(0)
+		for len(s.model.Items()) > 0 {
+			s.model.RemoveItem(0)
 		}
-		for i, schema := range msg.Database.Metadata.Schemas {
-			cmd := s.Model.InsertItem(i, schemaItem{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
+		for i, schema := range msg.SchemaList() {
+			cmd := s.model.InsertItem(i, schemaItem{id: fmt.Sprintf("schema_%d", i), title: schema})
 			cmds = append(cmds, cmd)
 		}
-		// var items []list.Item
-		// for i, schema := range msg.Database.Metadata.Schemas {
-		// 	items = append(items, schemaItem{id: fmt.Sprintf("schema_%d", i), title: schema.Name})
-		// }
-		// l := list.New(items, list.NewDefaultDelegate(), 0, 0)
-		// s.Model = &l
-		// return s, nil
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter", "o":
+			s.state = schemaListStateChosen
+		}
 	}
 
-	model, cmd := s.Model.Update(msg)
+	model, cmd := s.model.Update(msg)
 	cmds = append(cmds, cmd)
-	s.Model = &model
+	s.model = &model
 	return s, tea.Batch(cmds...)
 }
 
 func (s *SchemaList) View() string {
-	return s.style.Render(s.Model.View())
+	return s.style.Render(s.model.View())
 }
 
 func (s *SchemaList) SetSize(width, height int) {
 	h, v := s.style.Width(width).Height(height).GetFrameSize()
 	// panic(fmt.Sprintf("h: %d, v: %d, width: %d, height: %d", h, v, width, height))
-	s.Model.SetSize(width-h, height-v)
+	s.model.SetSize(width-h, height-v)
 }

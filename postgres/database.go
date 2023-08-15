@@ -85,21 +85,46 @@ func (d *Database) FetchSchemas() error {
 		return errors.Wrapf(err, "failed to get schemas from database %q", d.DataSource.DatabaseName)
 	}
 	d.Metadata = &Metadata{
-		Schemas: []Schema{},
+		Schemas: make(map[string]Schema),
 	}
 	for _, schema := range schemas {
-		d.Metadata.Schemas = append(d.Metadata.Schemas, Schema{Name: schema})
+		d.Metadata.Schemas[schema] = Schema{
+			Name: schema,
+		}
 	}
 	return nil
 }
 
+func (d *Database) FetchTables(schema string) error {
+	txn, err := d.DB.Begin()
+	if err != nil {
+		return errors.Wrapf(err, "failed to begin transaction")
+	}
+	defer txn.Rollback()
+	tables, err := getTables(txn, schema)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get tables from schema %q", schema)
+	}
+	schemaMeta := Schema{
+		Name:   schema,
+		Tables: make(map[string]Table),
+	}
+	for _, table := range tables {
+		schemaMeta.Tables[table] = Table{
+			Name: table,
+		}
+	}
+	d.Metadata.Schemas[schema] = schemaMeta
+	return nil
+}
+
 type Metadata struct {
-	Schemas []Schema
+	Schemas map[string]Schema
 }
 
 type Schema struct {
 	Name   string
-	Tables []Table
+	Tables map[string]Table
 }
 
 type Table struct {
@@ -186,12 +211,38 @@ type Table struct {
 // 	return tableMap, nil
 // }
 
-var listSchemaQuery = `
-SELECT nspname
-FROM pg_catalog.pg_namespace;
-`
+func getTables(txn *sql.Tx, schema string) ([]string, error) {
+	listTableQuery := fmt.Sprintf(`
+	SELECT tbl.tablename
+	FROM pg_catalog.pg_tables tbl
+	WHERE tbl.schemaname = '%s';`, schema)
+
+	rows, err := txn.Query(listTableQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []string
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return nil, err
+		}
+		result = append(result, tableName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
 
 func getSchemas(txn *sql.Tx) ([]string, error) {
+	var listSchemaQuery = `
+	SELECT nspname
+	FROM pg_catalog.pg_namespace;
+	`
 	rows, err := txn.Query(listSchemaQuery)
 	if err != nil {
 		return nil, err

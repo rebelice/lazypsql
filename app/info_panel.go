@@ -9,8 +9,6 @@ import (
 	zone "github.com/lrstanley/bubblezone"
 )
 
-type infoType string
-
 type InfoPanel struct {
 	list.Model
 
@@ -62,6 +60,13 @@ func (*InfoPanel) Init() tea.Cmd {
 }
 
 func (s *InfoPanel) Update(msg tea.Msg) (*InfoPanel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case ConnectMsg:
+		s.database = msg.Database.DataSource.DatabaseName
+		s.user = msg.Database.DataSource.Username
+		s.SetItem(0, infoItem{id: "info_panel_database", key: "Database", value: s.database})
+		s.SetItem(1, infoItem{id: "info_panel_user", key: "User", value: s.user})
+	}
 	model, cmd := s.Model.Update(msg)
 	s.Model = model
 	return s, cmd

@@ -90,6 +90,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.InfoPanel, cmd = m.InfoPanel.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
+	case tea.WindowSizeMsg:
+		horizontalFrame, verticalFrame := docStyle.GetFrameSize()
+		w, h := msg.Width-horizontalFrame, msg.Height-verticalFrame-1
+		// m.Err = errors.New(fmt.Sprintf("w: %d, h: %d, hf: %d, vf: %d", w, h, horizontalFrame, verticalFrame))
+		infoPanelHeight := h / 3
+		m.InfoPanel.SetSize(w/3, infoPanelHeight-2)
+		m.SchemaList.SetSize(w/3, h-infoPanelHeight-2)
+		m.CommandPanel.Width = w
 	}
 
 	// Mode specific updates
@@ -128,15 +136,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// }
 
 		// m.TableList = list.New(initItems, list.NewDefaultDelegate(), 0, 0)
-	case tea.WindowSizeMsg:
-		horizontalFrame, verticalFrame := docStyle.GetFrameSize()
-		w, h := msg.Width-horizontalFrame, msg.Height-verticalFrame-1
-		// m.Err = errors.New(fmt.Sprintf("w: %d, h: %d, hf: %d, vf: %d", w, h, horizontalFrame, verticalFrame))
-		infoPanelHeight := h / 3
-		m.InfoPanel.SetSize(w/3, infoPanelHeight-2)
-		m.SchemaList.SetSize(w/3, h-infoPanelHeight-2)
-		m.CommandPanel.Width = w
-		// return m, nil
+	// case tea.WindowSizeMsg:
+	// 	horizontalFrame, verticalFrame := docStyle.GetFrameSize()
+	// 	w, h := msg.Width-horizontalFrame, msg.Height-verticalFrame-1
+	// 	// m.Err = errors.New(fmt.Sprintf("w: %d, h: %d, hf: %d, vf: %d", w, h, horizontalFrame, verticalFrame))
+	// 	infoPanelHeight := h / 3
+	// 	m.InfoPanel.SetSize(w/3, infoPanelHeight-2)
+	// 	m.SchemaList.SetSize(w/3, h-infoPanelHeight-2)
+	// 	m.CommandPanel.Width = w
+	// return m, nil
 	// case tea.MouseMsg:
 	// 	if msg.Type == tea.MouseWheelUp {
 	// 		m.SchemaList.CursorUp()
@@ -200,4 +208,8 @@ type ErrMsg struct {
 
 func (e ErrMsg) Error() string {
 	return e.err.Error()
+}
+
+func (m Model) CurrentSchema() string {
+	return m.InfoPanel.schema
 }
